@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<Collection name="Content Scroll" guid="{7f098248-6708-497a-a393-427d72a298c3}" system="No" updatable="Yes" blockNavigatorNode="No">
+	<HelpLink></HelpLink>
+	<Help></Help>
+	<Addon name="Content Scroll" guid="{C7628303-E9EF-4457-A0D0-057D72590F05}" type="Add-on">
+		<Copy></Copy>
+		<CopyText></CopyText>
+		<ActiveXProgramID></ActiveXProgramID>
+		<DotNetClass></DotNetClass>
+		<ArgumentList><![CDATA[tickerName=
+width=200
+height=400
+]]></ArgumentList>
+		<AsAjax>No</AsAjax>
+		<Filter>No</Filter>
+		<Help></Help>
+		<HelpLink></HelpLink>
+		<Icon Link="" width="0" height="0" sprites="0" />
+		<InIframe>No</InIframe>
+		<BlockEditTools>No</BlockEditTools>
+		<FormXML></FormXML>
+		<IncludeAddon name="JQuery" guid="{9C882078-0DAC-48E3-AD4B-CF2AA230DF80}"/>
+		<IsInline>No</IsInline>
+		<JavascriptOnLoad></JavascriptOnLoad>
+		<JavascriptInHead><![CDATA[/**
+* author Remy Sharp
+* url http://remysharp.com/tag/marquee
+*/
+
+(function ($) {
+    $.fn.marquee = function (klass) {
+        var newMarquee = [],
+            last = this.length;
+
+        // works out the left or right hand reset position, based on scroll
+        // behavior, current direction and new direction
+        function getReset(newDir, marqueeRedux, marqueeState) {
+            var behavior = marqueeState.behavior, width = marqueeState.width, dir = marqueeState.dir;
+            var r = 0;
+            if (behavior == 'alternate') {
+                r = newDir == 1 ? marqueeRedux[marqueeState.widthAxis] - (width*2) : width;
+            } else if (behavior == 'slide') {
+                if (newDir == -1) {
+                    r = dir == -1 ? marqueeRedux[marqueeState.widthAxis] : width;
+                } else {
+                    r = dir == -1 ? marqueeRedux[marqueeState.widthAxis] - (width*2) : 0;
+                }
+            } else {
+                r = newDir == -1 ? marqueeRedux[marqueeState.widthAxis] : 0;
+            }
+            return r;
+        }
+
+        // single "thread" animation
+        function animateMarquee() {
+            var i = newMarquee.length,
+                marqueeRedux = null,
+                $marqueeRedux = null,
+                marqueeState = {},
+                newMarqueeList = [],
+                hitedge = false;
+                
+            while (i--) {
+                marqueeRedux = newMarquee[i];
+                $marqueeRedux = $(marqueeRedux);
+                marqueeState = $marqueeRedux.data('marqueeState');
+                
+                if ($marqueeRedux.data('paused') !== true) {
+                    // TODO read scrollamount, dir, behavior, loops and last from data
+                    marqueeRedux[marqueeState.axis] += (marqueeState.scrollamount * marqueeState.dir);
+
+                    // only true if it's hit the end
+                    hitedge = marqueeState.dir == -1 ? marqueeRedux[marqueeState.axis] <= getReset(marqueeState.dir * -1, marqueeRedux, marqueeState) : marqueeRedux[marqueeState.axis] >= getReset(marqueeState.dir * -1, marqueeRedux, marqueeState);
+                    
+                    if ((marqueeState.behavior == 'scroll' && marqueeState.last == marqueeRedux[marqueeState.axis]) || (marqueeState.behavior == 'alternate' && hitedge && marqueeState.last != -1) || (marqueeState.behavior == 'slide' && hitedge && marqueeState.last != -1)) {                        
+                        if (marqueeState.behavior == 'alternate') {
+                            marqueeState.dir *= -1; // flip
+                        }
+                        marqueeState.last = -1;
+
+                        $marqueeRedux.trigger('stop');
+
+                        marqueeState.loops--;
+                        if (marqueeState.loops === 0) {
+                            if (marqueeState.behavior != 'slide') {
+                                marqueeRedux[marqueeState.axis] = getReset(marqueeState.dir, marqueeRedux, marqueeState);
+                            } else {
+                                // corrects the position
+                                marqueeRedux[marqueeState.axis] = getReset(marqueeState.dir * -1, marqueeRedux, marqueeState);
+                            }
+
+                            $marqueeRedux.trigger('end');
+                        } else {
+                            // keep this marquee going
+                            newMarqueeList.push(marqueeRedux);
+                            $marqueeRedux.trigger('start');
+                            marqueeRedux[marqueeState.axis] = getReset(marqueeState.dir, marqueeRedux, marqueeState);
+                        }
+                    } else {
+                        newMarqueeList.push(marqueeRedux);
+                    }
+                    marqueeState.last = marqueeRedux[marqueeState.axis];
+
+                    // store updated state only if we ran an animation
+                    $marqueeRedux.data('marqueeState', marqueeState);
+                } else {
+                    // even though it's paused, keep it in the list
+                    newMarqueeList.push(marqueeRedux);                    
+                }
+            }
+
+            newMarquee = newMarqueeList;
+            
+            if (newMarquee.length) {
+                setTimeout(animateMarquee, 25);
+            }            
+        }
+        
+        // TODO consider whether using .html() in the wrapping process could lead to loosing predefined events...
+        this.each(function (i) {
+            var $marquee = $(this),
+                width = $marquee.attr('width') || $marquee.width(),
+                height = $marquee.attr('height') || $marquee.height(),
+                $marqueeRedux = $marquee.after('<div ' + (klass ? 'class="' + klass + '" ' : '') + 'style="display: block-inline; width: ' + width + 'px; height: ' + height + 'px; overflow: hidden;"><div style="float: left; white-space: nowrap;">' + $marquee.html() + '</div></div>').next(),
+                marqueeRedux = $marqueeRedux.get(0),
+                hitedge = 0,
+                direction = ($marquee.attr('direction') || 'left').toLowerCase(),
+                marqueeState = {
+                    dir : /down|right/.test(direction) ? -1 : 1,
+                    axis : /left|right/.test(direction) ? 'scrollLeft' : 'scrollTop',
+                    widthAxis : /left|right/.test(direction) ? 'scrollWidth' : 'scrollHeight',
+                    last : -1,
+                    loops : $marquee.attr('loop') || -1,
+                    scrollamount : $marquee.attr('scrollamount') || this.scrollAmount || 2,
+                    behavior : ($marquee.attr('behavior') || 'scroll').toLowerCase(),
+                    width : /left|right/.test(direction) ? width : height
+                };
+            
+            // corrects a bug in Firefox - the default loops for slide is -1
+            if ($marquee.attr('loop') == -1 && marqueeState.behavior == 'slide') {
+                marqueeState.loops = 1;
+            }
+
+            $marquee.remove();
+            
+            // add padding
+            if (/left|right/.test(direction)) {
+                $marqueeRedux.find('> div').css('padding', '0 ' + width + 'px');
+            } else {
+                $marqueeRedux.find('> div').css('padding', height + 'px 0');
+            }
+            
+            // events
+            $marqueeRedux.bind('stop', function () {
+                $marqueeRedux.data('paused', true);
+            }).bind('pause', function () {
+                $marqueeRedux.data('paused', true);
+            }).bind('start', function () {
+                $marqueeRedux.data('paused', false);
+            }).bind('unpause', function () {
+                $marqueeRedux.data('paused', false);
+            }).data('marqueeState', marqueeState); // finally: store the state
+            
+            // todo - rerender event allowing us to do an ajax hit and redraw the marquee
+
+            newMarquee.push(marqueeRedux);
+
+            marqueeRedux[marqueeState.axis] = getReset(marqueeState.dir, marqueeRedux, marqueeState);
+            $marqueeRedux.trigger('start');
+            
+            // on the very last marquee, trigger the animation
+            if (i+1 == last) {
+                animateMarquee();
+            }
+        });            
+
+        return $(newMarquee);
+    };
+}(jQuery));
+
+    <!--
+    $(function () {
+        
+        $('div.scrollContainer marquee').marquee('pointer').mouseover(function () {
+            $(this).trigger('stop');
+        }).mouseout(function () {
+            $(this).trigger('start');
+        }).mousemove(function (event) {
+            if ($(this).data('drag') == true) {
+                this.scrollLeft = $(this).data('scrollX') + ($(this).data('x') - event.clientX);
+            }
+        }).mousedown(function (event) {
+            $(this).data('drag', true).data('x', event.clientX).data('scrollX', this.scrollLeft);
+        }).mouseup(function () {
+            $(this).data('drag', false);
+        });
+    });
+    //-->]]></JavascriptInHead>
+		<JavascriptBodyEnd></JavascriptBodyEnd>
+		<MetaDescription></MetaDescription>
+		<OtherHeadTags></OtherHeadTags>
+		<Content>Yes</Content>
+		<Template>Yes</Template>
+		<Email>No</Email>
+		<Admin>No</Admin>
+		<OnPageEndEvent>No</OnPageEndEvent>
+		<OnPageStartEvent>No</OnPageStartEvent>
+		<OnBodyStart>No</OnBodyStart>
+		<OnBodyEnd>No</OnBodyEnd>
+		<RemoteMethod>No</RemoteMethod>
+		<ProcessRunOnce>No</ProcessRunOnce>
+		<ProcessInterval>0</ProcessInterval>
+		<PageTitle></PageTitle>
+		<RemoteAssetLink></RemoteAssetLink>
+		<Styles></Styles>
+		<Scripting Language="VBScript" EntryPoint="getContent" Timeout="60000">
+			<Code><![CDATA[function getContent()
+
+			dim result
+			dim cs
+			dim copyName
+			dim copyGuid
+			dim copyBody
+			dim criteria
+			dim copyId
+			'
+			' try legacy name first, then use instanceId
+			'
+			copyId = 0
+			result = ""
+			copyName = cp.doc.gettext("tickerName")
+		    if copyName <> "" then
+				criteria = "(Name = " & CP.Db.EncodeSQLText(copyName) & ")"
+			else
+				copyGuid = cp.doc.gettext( "InstanceId" )
+				if copyGuid = "-2" then
+					copyGuid = "created in admin site for member " & ccLib.MemberId
+				end if
+				if copyGuid <> "" then
+					criteria = "(ccguid=" & CP.Db.EncodeSQLText(copyGuid) & ")"
+				end if
+			end if
+			if criteria <> "" then
+               set  cs = CP.CSNew()
+			   call cs.open("Copy Content", criteria)
+				if not cs.ok() then
+					call cs.close() 
+					call cs.Insert("Copy Content")
+					if cs.OK() then
+						if copyName="" then
+							copyName = "Custom Content Scroll for page " & CP.Doc.PageName
+						end if
+						call cs.SetField( "name", copyName )
+						call cs.SetField(  "ccGuid", copyGuid )
+					end if
+				end if
+				if cs.ok() then
+					copyBody = cs.gettext( "Copy")
+					copyId = cs.getText( "id" )
+			end if
+				call cs.close()
+			end if
+			'
+			if (copyid<>0) and (CP.User.IsEditing( "copy Content" )) then
+				result = result & "<div>" & CP.Content.GetEditLink("copy content", copyId, False, copyName, True) & "&nbsp;&nbsp;&nbsp;&nbsp;Edit the scrolling content</div>"
+			end if
+			result = result & "<div class=""scrollContainer"">"
+			result = result & "<marquee behavior=""scroll"" direction=""up"" scrollamount=""1"" height=""" & cp.doc.gettext("height") & """ width=""" & cp.doc.gettext("width") & """>"
+			result = result & copyBody
+			result = result & "</marquee>"
+			result = result & "</div>"
+			'
+			getContent = result
+
+end function]]></Code>
+		</Scripting>
+	</Addon>
+	<CDef Name="Copy Content" guid="{E65725A3-5CA8-40D8-A869-A8F887B68F71}" ></CDef>
+	<ImportCollection name="JQuery">{A435BF70-041B-43D1-8A8D-5D9D59A7FCD0}</ImportCollection>
+</Collection>
